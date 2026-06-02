@@ -583,7 +583,10 @@ export class ConditionalNode extends BaseNode {
 
       const client = new CrmClientService();
       const response = await client.getConversation({ conversationId });
-      return response?.data ?? null;
+      // conversations#show returns a success_response envelope ({ success, data, meta })
+      // and executeRequest stores the raw body as `data`, so the conversation
+      // (with pipelines) sits one level deeper at response.data.data.
+      return response?.data?.data ?? null;
     } catch (error: any) {
       this.logger.warn('Failed to load conversation data', {
         conversationId,

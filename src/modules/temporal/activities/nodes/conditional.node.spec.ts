@@ -1,5 +1,12 @@
 import { ConditionalNode, ConditionalNodeInput } from './conditional.node';
 
+const mockGetConversation = jest.fn();
+jest.mock('../../../../shared/crm-client/crm-client.service', () => ({
+  CrmClientService: jest.fn().mockImplementation(() => ({
+    getConversation: mockGetConversation,
+  })),
+}));
+
 describe('ConditionalNode — {{conversation.pipeline_stage_id}}', () => {
   let node: ConditionalNode;
 
@@ -64,6 +71,7 @@ describe('ConditionalNode — {{conversation.pipeline_stage_id}}', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    mockGetConversation.mockReset();
   });
 
   it('equals: matches when the conversation is currently in stage X', async () => {
@@ -179,5 +187,29 @@ describe('ConditionalNode — {{conversation.pipeline_stage_id}}', () => {
     await node.execute(contactInput);
 
     expect(loadSpy).not.toHaveBeenCalled();
+  });
+
+  it('integration: resolves the stage through the real loadConversationData, unwrapping the success_response envelope', async () => {
+    // No loadConversationData spy here — exercise the real seam. getConversation
+    // returns the CRM envelope ({ success, data: <conversation>, meta }) wrapped
+    // by executeRequest as CrmApiResponse.data, so the stage lives at data.data.
+    const conversationBody = {
+      success: true,
+      data: {
+        pipelines: [{ id: 'pl1', name: 'Sales', stages: [{ id: STAGE_X }] }],
+      },
+      meta: {},
+    };
+    mockGetConversation.mockResolvedValue({
+      success: true,
+      data: conversationBody,
+    });
+
+    const result = await node.execute(inputWith('equals', STAGE_X));
+
+    expect(mockGetConversation).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+    });
+    expect((result as any).nextNodeHandle).toBe('p1');
   });
 });
