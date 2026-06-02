@@ -7,7 +7,7 @@
 <h1 align="center">Evo Flow</h1>
 
 <p align="center">
-  Backend NestJS para journeys, segments, campaigns, events e click-tracking — o motor de automacao da Evo CRM Community.
+  Backend NestJS para journeys, segments, campaigns, events e click-tracking — o motor de automacao da BChat CRM Community.
 </p>
 
 <p align="center">
@@ -28,9 +28,9 @@
 
 ## About
 
-**Evo Flow** is the automation engine of the Evo CRM Community. Built on NestJS 11, it orchestrates journeys (via Temporal workflows), evaluates segments (on ClickHouse), schedules and executes campaigns, ingests events (via Kafka), and tracks short-link clicks.
+**Evo Flow** is the automation engine of the BChat CRM Community. Built on NestJS 11, it orchestrates journeys (via Temporal workflows), evaluates segments (on ClickHouse), schedules and executes campaigns, ingests events (via Kafka), and tracks short-link clicks.
 
-It is designed as a stateless application service that integrates with the rest of the Evo CRM Community stack:
+It is designed as a stateless application service that integrates with the rest of the BChat CRM Community stack:
 - **`evo-auth-service-community`** issues and validates Bearer tokens — Evo Flow does not perform login itself.
 - **`evo-ai-crm-community`** is the source-of-truth for contacts, labels, users and custom attributes — Evo Flow reads through the CRM REST API.
 - **Postgres** stores journeys, segments, campaigns and short-links definitions.
@@ -39,9 +39,9 @@ It is designed as a stateless application service that integrates with the rest 
 - **Redis** handles caching and short-term coordination.
 - **Temporal** powers journey workflow orchestration.
 
-## Part of the Evo CRM Community
+## Part of the BChat CRM Community
 
-Evo Flow is part of the [Evo CRM Community](https://github.com/evolution-foundation/evo-crm-community) ecosystem maintained by Evolution Foundation. To use the full stack, clone the umbrella repository with submodules:
+Evo Flow is part of the [BChat CRM Community](https://github.com/evolution-foundation/evo-crm-community) ecosystem maintained by Evolution Foundation. To use the full stack, clone the umbrella repository with submodules:
 
 ```bash
 git clone --recurse-submodules git@github.com:evolution-foundation/evo-crm-community.git
@@ -208,7 +208,7 @@ npm run dev:event-process      # event-process    — broker-driven event proces
 
 ## Architecture
 
-Evo Flow is the automation layer between the user-facing Evo CRM and the underlying data plane:
+Evo Flow is the automation layer between the user-facing BChat CRM and the underlying data plane:
 
 ```
                        ┌──────────────────────────────┐

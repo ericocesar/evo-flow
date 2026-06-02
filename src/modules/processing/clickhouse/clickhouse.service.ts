@@ -478,7 +478,7 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         ENGINE = MergeTree()
         PARTITION BY toYYYYMM(occurred_at)
         ORDER BY (occurred_at, event_type)
-        TTL occurred_at + INTERVAL 365 DAY
+        TTL toDateTime(occurred_at) + INTERVAL 365 DAY
         SETTINGS index_granularity = 8192
       `;
 

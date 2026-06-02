@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial public release of `evo-flow` as part of the Evo CRM Community family.
+- Initial public release of `evo-flow` as part of the BChat CRM Community family.
 - Campaigns, journeys, segments, events, click-tracking and processing modules built on NestJS, Postgres, ClickHouse, Kafka, Redis and Temporal.
 - Integration with `evo-auth-service-community` for token validation and with `evo-ai-crm-community` (Rails) as the source-of-truth for contacts, labels, users and custom attributes.
 - Single-account architecture: no multi-tenancy at the evo-flow layer; account scoping is handled upstream by the CRM via JWT claims.
