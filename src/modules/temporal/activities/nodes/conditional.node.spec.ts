@@ -135,4 +135,49 @@ describe('ConditionalNode — {{conversation.pipeline_stage_id}}', () => {
 
     expect((result as any).nextNodeHandle).toBe('else');
   });
+
+  it('no target stage selected → never matches, even with not_equals', async () => {
+    jest
+      .spyOn(node as any, 'loadConversationData')
+      .mockResolvedValue(conversationInStages(STAGE_X));
+
+    const result = await node.execute(inputWith('not_equals', ''));
+
+    expect((result as any).nextNodeHandle).toBe('else');
+  });
+
+  it('does not load conversation data when no condition uses a conversation field', async () => {
+    const loadSpy = jest
+      .spyOn(node as any, 'loadConversationData')
+      .mockResolvedValue(null);
+
+    const contactInput: ConditionalNodeInput = {
+      nodeId: 'n1',
+      contactId: 'c1',
+      conversationId: 'conv-1',
+      sessionId: 's1',
+      nodeData: {
+        paths: [
+          {
+            id: 'p1',
+            name: 'Contact path',
+            conditions: [
+              {
+                id: 'cond-1',
+                type: 'contact',
+                field: '{{contact.email}}',
+                operator: 'equals',
+                value: 'a@b.com',
+              },
+            ],
+            logicalOperator: 'AND',
+          },
+        ],
+      },
+    };
+
+    await node.execute(contactInput);
+
+    expect(loadSpy).not.toHaveBeenCalled();
+  });
 });

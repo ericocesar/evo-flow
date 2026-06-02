@@ -1,5 +1,7 @@
 import { BaseNode, NodeExecutionResult } from './base.node';
 
+const CONVERSATION_FIELD_PATTERN = /\{\{conversation\.([^}]+)\}\}/;
+
 export interface ConditionalNodeInput {
   nodeId: string;
   contactId: string;
@@ -57,11 +59,19 @@ export class ConditionalNode extends BaseNode {
       // Load contact data for evaluation
       const contactData = await this.loadContactData(input.contactId);
 
-      // Load conversation data for evaluation (pipeline stage, etc.).
-      // Null when the journey was not triggered by a conversation event.
-      const conversationData = await this.loadConversationData(
-        input.conversationId,
+      // Load conversation data only when a path actually references a
+      // {{conversation.*}} field — avoids a CRM round-trip on every Conditional
+      // node that does not need it. Null when out of scope or unavailable.
+      const needsConversationData = paths.some((path) =>
+        (path.conditions || []).some(
+          (condition) =>
+            typeof condition.field === 'string' &&
+            CONVERSATION_FIELD_PATTERN.test(condition.field),
+        ),
       );
+      const conversationData = needsConversationData
+        ? await this.loadConversationData(input.conversationId)
+        : null;
 
       // Load session variables
       const sessionVariables = await this.loadSessionVariables(input.sessionId);
@@ -204,10 +214,7 @@ export class ConditionalNode extends BaseNode {
     // Conversation fields ({{conversation.*}}) are resolved against the live
     // conversation regardless of the condition `type`, since the field is
     // selected as a system variable rather than tied to a dedicated type.
-    if (
-      typeof field === 'string' &&
-      /\{\{conversation\.[^}]+\}\}/.test(field)
-    ) {
+    if (typeof field === 'string' && CONVERSATION_FIELD_PATTERN.test(field)) {
       const stageIds = this.resolveConversationField(field, conversationData);
       return this.compareConversationStage(stageIds, operator, value);
     }
@@ -302,7 +309,7 @@ export class ConditionalNode extends BaseNode {
     field: string,
     conversationData: any,
   ): string[] {
-    const match = field.match(/\{\{conversation\.([^}]+)\}\}/);
+    const match = field.match(CONVERSATION_FIELD_PATTERN);
     const fieldName = match?.[1];
 
     if (fieldName === 'pipeline_stage_id') {
@@ -317,6 +324,7 @@ export class ConditionalNode extends BaseNode {
         .filter((id: any): id is string => typeof id === 'string');
     }
 
+    this.logger.warn('Unsupported conversation field', { field });
     return [];
   }
 
@@ -330,7 +338,8 @@ export class ConditionalNode extends BaseNode {
     operator: string,
     expectedValue: any,
   ): boolean {
-    if (!stageIds.length) return false;
+    // No target stage selected or no current stage → never match (conservative).
+    if (!expectedValue || !stageIds.length) return false;
 
     const expected = String(expectedValue);
     switch (operator) {
