@@ -3,6 +3,7 @@ import { BaseNode, NodeExecutionResult } from './base.node';
 export interface ConditionalNodeInput {
   nodeId: string;
   contactId: string;
+  conversationId?: string;
   sessionId: string;
   nodeData: {
     paths: Array<{
@@ -56,6 +57,12 @@ export class ConditionalNode extends BaseNode {
       // Load contact data for evaluation
       const contactData = await this.loadContactData(input.contactId);
 
+      // Load conversation data for evaluation (pipeline stage, etc.).
+      // Null when the journey was not triggered by a conversation event.
+      const conversationData = await this.loadConversationData(
+        input.conversationId,
+      );
+
       // Load session variables
       const sessionVariables = await this.loadSessionVariables(input.sessionId);
 
@@ -73,6 +80,7 @@ export class ConditionalNode extends BaseNode {
         const pathResult = await this.evaluatePath(
           path,
           contactData,
+          conversationData,
           sessionVariables,
           input,
         );
@@ -145,6 +153,7 @@ export class ConditionalNode extends BaseNode {
   private async evaluatePath(
     path: any,
     contactData: any,
+    conversationData: any,
     sessionVariables: Record<string, any>,
     input: ConditionalNodeInput,
   ): Promise<{ matched: boolean; evaluationTime: number }> {
@@ -160,6 +169,7 @@ export class ConditionalNode extends BaseNode {
       const result = await this.evaluateCondition(
         condition,
         contactData,
+        conversationData,
         sessionVariables,
         input,
       );
@@ -185,10 +195,22 @@ export class ConditionalNode extends BaseNode {
   private async evaluateCondition(
     condition: any,
     contactData: any,
+    conversationData: any,
     sessionVariables: Record<string, any>,
     input: ConditionalNodeInput,
   ): Promise<boolean> {
     const { type, field, operator, value } = condition;
+
+    // Conversation fields ({{conversation.*}}) are resolved against the live
+    // conversation regardless of the condition `type`, since the field is
+    // selected as a system variable rather than tied to a dedicated type.
+    if (
+      typeof field === 'string' &&
+      /\{\{conversation\.[^}]+\}\}/.test(field)
+    ) {
+      const stageIds = this.resolveConversationField(field, conversationData);
+      return this.compareConversationStage(stageIds, operator, value);
+    }
 
     // Resolve field value based on type
     let fieldValue: any;
@@ -265,6 +287,63 @@ export class ConditionalNode extends BaseNode {
 
     // Direct field access
     return contactData?.[field];
+  }
+
+  /**
+   * Resolve a {{conversation.*}} field against the live conversation payload.
+   *
+   * Currently supports `pipeline_stage_id`: returns the ids of the conversation's
+   * current pipeline stage(s). A conversation can sit in more than one pipeline
+   * (`pipeline_items` is has_many), so this returns every current stage id —
+   * membership is decided by `compareConversationStage`. Returns an empty array
+   * when there is no conversation or no pipeline item (null-safety).
+   */
+  private resolveConversationField(
+    field: string,
+    conversationData: any,
+  ): string[] {
+    const match = field.match(/\{\{conversation\.([^}]+)\}\}/);
+    const fieldName = match?.[1];
+
+    if (fieldName === 'pipeline_stage_id') {
+      const pipelines = conversationData?.pipelines;
+      if (!Array.isArray(pipelines)) return [];
+
+      return pipelines
+        .flatMap((pipeline: any) =>
+          Array.isArray(pipeline?.stages) ? pipeline.stages : [],
+        )
+        .map((stage: any) => stage?.id)
+        .filter((id: any): id is string => typeof id === 'string');
+    }
+
+    return [];
+  }
+
+  /**
+   * Compare the conversation's current stage id(s) against the selected stage.
+   * When the conversation has no stage (empty array), every operator resolves
+   * to false so an unknown/absent stage never matches and never crashes.
+   */
+  private compareConversationStage(
+    stageIds: string[],
+    operator: string,
+    expectedValue: any,
+  ): boolean {
+    if (!stageIds.length) return false;
+
+    const expected = String(expectedValue);
+    switch (operator) {
+      case 'equals':
+        return stageIds.includes(expected);
+      case 'not_equals':
+        return !stageIds.includes(expected);
+      default:
+        this.logger.warn('Unsupported operator for conversation stage', {
+          operator,
+        });
+        return false;
+    }
   }
 
   /**
@@ -476,6 +555,32 @@ export class ConditionalNode extends BaseNode {
         error: error.message,
       });
       return {};
+    }
+  }
+
+  /**
+   * Load conversation data from the CRM for evaluating {{conversation.*}}
+   * fields. Returns null when there is no conversation in scope (e.g. a
+   * contact-triggered journey) or when the request fails, so callers degrade
+   * to a non-matching condition instead of crashing.
+   */
+  private async loadConversationData(conversationId?: string): Promise<any> {
+    if (!conversationId) return null;
+
+    try {
+      const { CrmClientService } = await import(
+        '../../../../shared/crm-client/crm-client.service'
+      );
+
+      const client = new CrmClientService();
+      const response = await client.getConversation({ conversationId });
+      return response?.data ?? null;
+    } catch (error: any) {
+      this.logger.warn('Failed to load conversation data', {
+        conversationId,
+        error: error.message,
+      });
+      return null;
     }
   }
 
