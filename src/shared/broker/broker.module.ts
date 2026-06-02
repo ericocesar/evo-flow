@@ -21,10 +21,13 @@ const brokerProvider: Provider = {
     const rawValue = config.get<string>('BROKER_TYPE');
     const validList = BROKER_TYPE_VALUES.join(', ');
 
-    if (!rawValue) {
-      throw new BrokerConfigError(
-        `BROKER_TYPE is required but not set. Set BROKER_TYPE to one of: ${validList}.`,
-      );
+    if (!rawValue || rawValue === 'none' || rawValue === 'redis') {
+      return {
+        publish: async () => {},
+        subscribe: async () => {},
+        ack: async () => {},
+        nack: async () => {},
+      };
     }
 
     if (!BROKER_TYPE_VALUES.includes(rawValue as BrokerType)) {

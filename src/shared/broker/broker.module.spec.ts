@@ -59,21 +59,20 @@ describe('BrokerModule', () => {
     await moduleRef.close();
   });
 
-  it('fails boot with a descriptive error when BROKER_TYPE is unset', async () => {
-    await expect(compileBrokerModule(undefined)).rejects.toThrow(
-      BrokerConfigError,
-    );
-    await expect(compileBrokerModule(undefined)).rejects.toThrow(
-      /BROKER_TYPE is required/,
-    );
-    await expect(compileBrokerModule(undefined)).rejects.toThrow(
-      /kafka, rabbitmq/,
-    );
-  });
+  it('resolves to a dormant dummy broker when BROKER_TYPE is unset, empty, none, or redis', async () => {
+    for (const val of [undefined, '', 'none', 'redis']) {
+      const moduleRef = await compileBrokerModule(val);
+      const broker = moduleRef.get<IMessageBroker>(IMESSAGE_BROKER);
 
-  it('fails boot with a descriptive error when BROKER_TYPE is empty', async () => {
-    await expect(compileBrokerModule('')).rejects.toThrow(BrokerConfigError);
-    await expect(compileBrokerModule('')).rejects.toThrow(/kafka, rabbitmq/);
+      expect(broker).toBeDefined();
+      expect(broker).not.toBeInstanceOf(KafkaBrokerAdapter);
+      expect(broker).not.toBeInstanceOf(RabbitMQBrokerAdapter);
+
+      await expect(broker.publish('test', {})).resolves.not.toThrow();
+      await expect(broker.subscribe('test', async () => {})).resolves.not.toThrow();
+
+      await moduleRef.close();
+    }
   });
 
   it('fails boot with a descriptive error when BROKER_TYPE is invalid', async () => {
